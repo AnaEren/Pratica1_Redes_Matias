@@ -21,6 +21,7 @@ def dados_recebidos(conexao, dados):
 
 def conexao_aceita(conexao):
     print(conexao, 'nova conexão')
+    print('aceitouuuu')
     conexao.registrar_recebedor(dados_recebidos)
 
 
