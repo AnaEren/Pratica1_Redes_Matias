@@ -1,12 +1,10 @@
-##!/usr/bin/env python3
+#!/usr/bin/env python3
 import asyncio
 from tcp import Servidor
 import re
 
-asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())     #necessario com python 3.8 em windows 
-
 nicks = {}
-canais = {b'#Canal1':[], b'#canal2':[]}
+canais = {}
 
 def validar_nome(nome):
     return re.match(br'^[a-zA-Z][a-zA-Z0-9_-]*$', nome) is not None
@@ -26,7 +24,8 @@ def sair(conexao):
     for canal in canais:
         if conexao in canais[canal]:
             canais[canal].remove(conexao)
-    del nicks[conexao]
+    if conexao in nicks:
+        nicks.pop(conexao)
     conexao.fechar()
 
 
@@ -86,10 +85,14 @@ def dados_recebidos(conexao, dados):
                 conexao_dest.enviar(b':' + remetente + b' PRIVMSG ' + nicks[conexao_dest] + b' ' + dado[2] + b'\r\n')
                 
         elif dado[0] == b'JOIN':
-            if dado[1][0] != 35 or not validar_nome(dado[1][1:]) or dado[1].lower() not in [canal.lower() for canal in canais]:
+            if dado[1][0] != 35 or not validar_nome(dado[1][1:]):
                 conexao.enviar(b':server 403 ' + dado[1] + b' :No such channel\r\n')
             else:
-                canal = list(canais.keys())[[c.lower() for c in canais.keys()].index(dado[1].lower())]
+                if dado[1].lower() in [canal.lower() for canal in canais.keys()]:
+                    canal = list(canais.keys())[[c.lower() for c in canais.keys()].index(dado[1].lower())]
+                else:
+                    canal = dado[1]
+                    canais[canal] = []
                 template = b':server 353 ' + nicks[conexao] + b' = ' + canal + b' :'
                 if conexao not in canais[canal]:
                     canais[canal].append(conexao)
@@ -105,7 +108,7 @@ def dados_recebidos(conexao, dados):
                             conexao.enviar(msg)
                             msg = template + membro + b' '
                     conexao.enviar(msg + b'\r\n')
-                    conexao.enviar(b':server 366 ' + nicks[conexao] + b' ' + canal + b' :End of /NAMES list\r\n')
+                    conexao.enviar(b':server 366 ' + nicks[conexao] + b' ' + canal + b' :End of /NAMES list.\r\n')
                         
         elif dado[0] == b'PART':
             canal = list(canais.keys())[[c.lower() for c in canais.keys()].index(dado[1].lower())]
@@ -118,6 +121,7 @@ def dados_recebidos(conexao, dados):
 def conexao_aceita(conexao):
     print(conexao, 'nova conexão')
     conexao.registrar_recebedor(dados_recebidos)
+    conexao.res = b''
 
 
 servidor = Servidor(6667)
